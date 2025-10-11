@@ -36,6 +36,11 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+4. Verify installation (optional):
+```bash
+python test_installation.py
+```
+
 ## Usage
 
 ### Running the Dashboard
@@ -106,11 +111,12 @@ To use your own data instead of sample data, modify the `generate_sample_data()`
 
 ```
 Ergo-dash/
-├── app.py              # Main dashboard application
-├── requirements.txt    # Python dependencies
-├── .gitignore         # Git ignore rules
-├── LICENSE            # MIT License
-└── README.md          # This file
+├── app.py                 # Main dashboard application
+├── requirements.txt       # Python dependencies
+├── test_installation.py   # Installation verification script
+├── .gitignore            # Git ignore rules
+├── LICENSE               # MIT License
+└── README.md             # This file
 ```
 
 ## Development
