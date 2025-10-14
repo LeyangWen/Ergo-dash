@@ -38,3 +38,4 @@ Thumbs.db
 
 # Dash
 .dash_cache/
+assets/static_dash/

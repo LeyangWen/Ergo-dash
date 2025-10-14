@@ -1,260 +1,329 @@
-"""
-Ergo-dash: A dashboard app to display videos and statistics using Dash.
-"""
-import os
-from dash import Dash, html, dcc, Input, Output, callback
-import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
-import plotly.express as px
-import pandas as pd
-from datetime import datetime
+from dash import Dash, html, dcc, Input, Output, State, no_update
+import dash
+import time
+import re
+import importlib.util
+from pathlib import Path
 
-# Initialize the Dash app with Bootstrap theme
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+# ------------------------
+# App bootstrap
+# ------------------------
+app = Dash(__name__)  # auto-loads ./assets/*.css if present
+server = app.server
 
-# Sample data for statistics
-def generate_sample_data():
-    """Generate sample statistics data for demonstration."""
-    dates = pd.date_range(start='2025-01-01', periods=30, freq='D')
-    data = pd.DataFrame({
-        'date': dates,
-        'ergonomic_score': [70 + i * 0.5 + (i % 5) * 2 for i in range(30)],
-        'posture_incidents': [10 - i * 0.2 + (i % 3) for i in range(30)],
-        'activity_level': [50 + i * 0.8 + (i % 4) * 3 for i in range(30)]
-    })
-    return data
+# ------------------------
+# Constants / Defaults
+# ------------------------
+DEFAULT_VIDEO = "/assets/static_dash/generated/exp1/slowed_generated_terrain_lift.mp4"
 
-# Get sample data
-df = generate_sample_data()
+# 3DSSPP images (update to your actual exported files)
+SSPP_SMALL_LEFT  = "/assets/static_dash/generated/exp1/1-humanoid.png"
+SSPP_SMALL_RIGHT = "/assets/static_dash/generated/exp1/1-stick-side.png"
+SSPP_SMALL_WIDE  = "/assets/static_dash/generated/exp1/1-back.png"
 
-# Create sample videos directory structure
-VIDEO_DIR = os.path.join(os.path.dirname(__file__), 'videos')
-SAMPLE_VIDEOS = [
-    {
-        'name': 'Sample Ergonomic Assessment 1',
-        'url': 'https://www.w3schools.com/html/mov_bbb.mp4',  # Sample video for demo
-        'description': 'Proper sitting posture demonstration'
-    },
-    {
-        'name': 'Sample Ergonomic Assessment 2',
-        'url': 'https://www.w3schools.com/html/movie.mp4',  # Sample video for demo
-        'description': 'Workspace setup best practices'
-    }
-]
+SSPP_BIG_LEFT  = "/assets/static_dash/mocap/exp1/2-2-humanoid.png"
+SSPP_BIG_RIGHT = "/assets/static_dash/mocap/exp1/2-2-stick-side.png"
+SSPP_BIG_WIDE  = "/assets/static_dash/mocap/exp1/2-2-back.png"
 
-# Create statistics figures
-def create_ergonomic_score_chart():
-    """Create an ergonomic score trend chart."""
-    fig = px.line(df, x='date', y='ergonomic_score', 
-                  title='Ergonomic Score Trend',
-                  labels={'ergonomic_score': 'Score', 'date': 'Date'})
-    fig.update_traces(line_color='#2E86AB', line_width=3)
-    fig.update_layout(
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        font=dict(size=12),
-        hovermode='x unified'
-    )
-    return fig
+# Top-left two tiles
+SMALL_VIDEO_A = "/assets/static_dash/mocap/exp1/bad_raw.mov"
+MOCAP_HTML    = "/assets/static_dash/mocap/exp1/ref_motion_render_patched.html?v=1"
 
-def create_posture_incidents_chart():
-    """Create a posture incidents chart."""
-    fig = px.bar(df, x='date', y='posture_incidents',
-                 title='Posture Incidents Over Time',
-                 labels={'posture_incidents': 'Incidents', 'date': 'Date'})
-    fig.update_traces(marker_color='#A23B72')
-    fig.update_layout(
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        font=dict(size=12),
-        hovermode='x unified'
-    )
-    return fig
+# Path to your generated NIOSH score python file
+SCORE_PATH = Path("assets/static_dash/generated/exp1/NIOSH_score.py")
 
-def create_activity_gauge():
-    """Create an activity level gauge."""
-    current_activity = df['activity_level'].iloc[-1]
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number+delta",
-        value=current_activity,
-        domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': "Current Activity Level"},
-        delta={'reference': 70},
-        gauge={
-            'axis': {'range': [None, 100]},
-            'bar': {'color': "#F18F01"},
-            'steps': [
-                {'range': [0, 30], 'color': "#FFE5D9"},
-                {'range': [30, 70], 'color': "#FFC2A1"},
-                {'range': [70, 100], 'color': "#FFA07A"}
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': 90
-            }
+
+# ------------------------
+# Helpers: NIOSH & DSSPP
+# ------------------------
+def load_niosh_scores(path: Path = SCORE_PATH) -> dict:
+    """
+    Dynamically load score variables from a python file without requiring PYTHONPATH changes.
+    Expected (customize to your file's contents): LI, RWL, HM, VM, DM, AM, FM, CM
+    """
+    try:
+        if not path.exists():
+            print(f"[warn] NIOSH score file not found: {path}")
+            return {}
+        spec = importlib.util.spec_from_file_location("niosh_scores", str(path))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)  # type: ignore
+        data = {
+            "LI":  getattr(mod, "LI",  None),
+            "RWL": getattr(mod, "RWL", None),
+            "HM":  getattr(mod, "HM",  None),
+            "VM":  getattr(mod, "VM",  None),
+            "DM":  getattr(mod, "DM",  None),
+            "AM":  getattr(mod, "AM",  None),
+            "FM":  getattr(mod, "FM",  None),
+            "CM":  getattr(mod, "CM",  None),
         }
-    ))
-    fig.update_layout(
-        paper_bgcolor='white',
-        font={'size': 12}
+        return data
+    except Exception as e:
+        print("[error] Failed to load NIOSH scores:", e)
+        return {}
+
+
+def format_niosh_text(scores: dict) -> str:
+    if not scores:
+        return "NIOSH scores unavailable."
+    def fmt(x):
+        return "—" if x is None else f"{x}"
+    return (
+        f"Lifting Index (LI): {fmt(scores.get('LI'))}\n"
+        f"Recommended Weight Limit (RWL): {fmt(scores.get('RWL'))}\n"
+        # f"HM: {fmt(scores.get('HM'))}   VM: {fmt(scores.get('VM'))}   DM: {fmt(scores.get('DM'))}\n"
+        # f"AM: {fmt(scores.get('AM'))}   FM: {fmt(scores.get('FM'))}   CM: {fmt(scores.get('CM'))}"
     )
-    return fig
 
-# App layout
-app.layout = dbc.Container([
-    # Header
-    dbc.Row([
-        dbc.Col([
-            html.H1("Ergo-dash Dashboard", className="text-center text-primary mb-4"),
-            html.P("Ergonomic Assessment and Video Analysis Dashboard", 
-                   className="text-center text-muted mb-4")
-        ])
-    ]),
-    
-    # Video Section
-    dbc.Row([
-        dbc.Col([
-            html.H3("Video Library", className="mb-3"),
-            dcc.Dropdown(
-                id='video-selector',
-                options=[{'label': v['name'], 'value': i} 
-                        for i, v in enumerate(SAMPLE_VIDEOS)],
-                value=0,
-                clearable=False,
-                className="mb-3"
-            ),
-            html.Div(id='video-description', className="mb-3 text-muted"),
+
+def format_dsspp_text() -> str:
+    # Placeholder; wire to your real numbers/file if needed.
+    return "L4/L5 Back Compression Force = 3.1 kN"
+
+
+# ------------------------
+# Chat bubble helper
+# ------------------------
+def bubble(role, kind, content, filename=None):
+    classes = f"msg msg-{role}"
+    if kind == "file":
+        inner = html.Div([
+            html.Div("📎", className="file-ico"),
             html.Div([
-                html.Video(
-                    id='video-player',
-                    controls=True,
-                    style={'width': '100%', 'maxHeight': '500px'}
-                )
-            ], className="mb-4")
-        ], width=12, lg=6),
-        
-        # Statistics Summary Cards
-        dbc.Col([
-            html.H3("Statistics Summary", className="mb-3"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            html.H5("Avg Ergonomic Score", className="card-title"),
-                            html.H2(f"{df['ergonomic_score'].mean():.1f}", 
-                                   className="text-primary"),
-                            html.P("Last 30 days", className="text-muted")
-                        ])
-                    ], className="mb-3")
-                ], width=12),
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            html.H5("Total Incidents", className="card-title"),
-                            html.H2(f"{int(df['posture_incidents'].sum())}", 
-                                   className="text-danger"),
-                            html.P("Last 30 days", className="text-muted")
-                        ])
-                    ], className="mb-3")
-                ], width=12),
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            html.H5("Avg Activity", className="card-title"),
-                            html.H2(f"{df['activity_level'].mean():.1f}%", 
-                                   className="text-success"),
-                            html.P("Last 30 days", className="text-muted")
-                        ])
-                    ], className="mb-3")
-                ], width=12)
-            ])
-        ], width=12, lg=6)
-    ], className="mb-4"),
-    
-    # Charts Section
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(
-                id='ergonomic-score-chart',
-                figure=create_ergonomic_score_chart()
-            )
-        ], width=12, lg=6, className="mb-4"),
-        
-        dbc.Col([
-            dcc.Graph(
-                id='posture-incidents-chart',
-                figure=create_posture_incidents_chart()
-            )
-        ], width=12, lg=6, className="mb-4")
-    ]),
-    
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(
-                id='activity-gauge',
-                figure=create_activity_gauge()
-            )
-        ], width=12, lg=6, className="mb-4"),
-        
-        dbc.Col([
-            dbc.Card([
-                dbc.CardBody([
-                    html.H5("Data Summary", className="card-title mb-3"),
-                    html.Div([
-                        html.Strong("Date Range: "),
-                        f"{df['date'].min().strftime('%Y-%m-%d')} to {df['date'].max().strftime('%Y-%m-%d')}"
-                    ], className="mb-2"),
-                    html.Div([
-                        html.Strong("Total Records: "),
-                        f"{len(df)}"
-                    ], className="mb-2"),
-                    html.Div([
-                        html.Strong("Best Score: "),
-                        f"{df['ergonomic_score'].max():.1f}",
-                        html.Span(f" (on {df.loc[df['ergonomic_score'].idxmax(), 'date'].strftime('%Y-%m-%d')})", 
-                                 className="text-muted")
-                    ], className="mb-2"),
-                    html.Div([
-                        html.Strong("Lowest Incidents: "),
-                        f"{int(df['posture_incidents'].min())}",
-                        html.Span(f" (on {df.loc[df['posture_incidents'].idxmin(), 'date'].strftime('%Y-%m-%d')})", 
-                                 className="text-muted")
-                    ])
-                ])
-            ])
-        ], width=12, lg=6, className="mb-4")
-    ]),
-    
-    # Footer
-    dbc.Row([
-        dbc.Col([
-            html.Hr(),
-            html.P("Ergo-dash © 2025 - Ergonomic Assessment Dashboard", 
-                   className="text-center text-muted")
-        ])
-    ])
-], fluid=True, className="p-4")
+                html.Div("File uploaded", className="file-title"),
+                # html.Div(filename or "file", className="file-name"),
+            ], className="file-meta"),
+        ], className="file-bubble")
+    else:
+        inner = html.Div(content, className="msg-text")
+    return html.Div(inner, className=classes)
 
-# Callbacks
-@callback(
-    [Output('video-player', 'src'),
-     Output('video-description', 'children')],
-    [Input('video-selector', 'value')]
+
+# ------------------------
+# Layout
+# ------------------------
+app.layout = html.Div(
+    className="page",
+
+    children=[
+        # Invisible stores
+        dcc.Store(id="show-video", data={"show": False, "src": ""}),  # controls big video rendering
+        dcc.Store(id="chat-store", data=[]),
+
+        # ---- Top-left two squares: left = video, right = mocap HTML (square iframe) ----
+        html.Div(className="card pink video1", children=[
+            html.Div("Captured Motion", className="card-badge"),
+            html.Div(className="video-grid", children=[
+                html.Video(src=SMALL_VIDEO_A, controls=True, className="player"),
+                html.Div(className="square-frame", children=[
+                    html.Iframe(
+                        src=MOCAP_HTML,
+                        className="square-iframe",
+                    )
+                ]),
+            ]),
+        ]),
+        # top spacer
+        html.Div(className="divider"),
+        # ---- Middle column row 1: NIOSH text ----
+        html.Div(className="card pink niosh", children=[
+            html.Div("NIOSH Lifting Equation", className="card-badge"),
+            # html.Div("NIOSH Lifting Equation", className="card-title"),
+            html.Pre(id="niosh-text-small", className="score-pre"),
+        ]),
+
+        # ---- Middle column row 2: 3DSSPP images + text ----
+        html.Div(className="card pink dsspp", children=[
+            html.Div("3DSSPP", className="card-badge"),
+            html.Div(className="ssp-grid", children=[
+                html.Img(src=SSPP_SMALL_LEFT,  className="square"),
+                html.Img(src=SSPP_SMALL_RIGHT, className="square"),
+                html.Img(src=SSPP_SMALL_WIDE,  className="wide"),
+            ]),
+            html.Pre(id="dsspp-text-small", className="score-pre"),
+        ]),
+
+        # ---- Left bottom two rows: Big video (persistent element) with dcc.Loading spinner ----
+        html.Div(className="card green video_big", children=[
+            html.Div("Recommended Motion", className="card-badge"),
+            dcc.Loading(
+                id="video-loading",
+                type="circle",
+                children=html.Div(
+                    id="video-stage",
+                    children=[
+                        html.Video(
+                            id="player",
+                            src="",
+                            controls=True,
+                            autoPlay=True,
+                            muted=True,   # iOS Safari requires muted for autoplay
+                            preload="auto",
+                            className="big-player"
+                        ),
+                    ],
+                ),
+            ),
+        ]),
+
+        # ---- Middle bottom row 3: NIOSH big text ----
+        html.Div(className="card green niosh_big", children=[
+            html.Div("NIOSH Lifting Equation", className="card-badge"),
+            html.Pre(id="niosh-text-big", className="score-pre"),
+        ]),
+
+        # ---- Middle bottom row 4: 3DSSPP big images + text ----
+        html.Div(className="card green dsspp_big", children=[
+            html.Div("3DSSPP", className="card-badge"),
+            html.Div(className="ssp-grid", children=[
+                html.Img(src=SSPP_BIG_LEFT,  className="square"),
+                html.Img(src=SSPP_BIG_RIGHT, className="square"),
+                html.Img(src=SSPP_BIG_WIDE,  className="wide"),
+            ]),
+            html.Pre(id="dsspp-text-big", className="score-pre"),
+        ]),
+
+        # ---- Right: Chat spanning all rows ----
+        html.Div(className="card chat", children=[
+            html.Div(id="chat-history", className="chat-history"),
+            html.Div(className="chat-input-row", children=[
+                dcc.Upload(
+                    id="chat-upload",
+                    multiple=False,
+                    children=html.Div([
+                        html.Span("＋", className="upload-plus"),
+                    ], className="upload-area"),
+                ),
+                dcc.Textarea(
+                    id="chat-text",
+                    placeholder="Ask anything…",
+                    className="chat-textarea",
+                    maxLength=4000,
+                ),
+                html.Button("Send", id="chat-send", n_clicks=0, className="chat-send-btn"),
+            ]),
+        ]),
+    ],
 )
-def update_video(selected_index):
-    """Update video player source when selection changes."""
-    if selected_index is not None and selected_index < len(SAMPLE_VIDEOS):
-        video = SAMPLE_VIDEOS[selected_index]
-        return video['url'], html.P([html.Strong("Description: "), video['description']])
-    return "", ""
 
-# Run the app
-if __name__ == '__main__':
-    print("\n" + "="*50)
-    print("Ergo-dash Dashboard Starting...")
-    print("="*50)
-    print("Access the dashboard at: http://localhost:8050")
-    print("Press Ctrl+C to stop the server")
-    print("="*50 + "\n")
-    app.run(debug=True, host='0.0.0.0', port=8050)
+
+# ------------------------
+# Callbacks
+# ------------------------
+@app.callback(
+    Output("chat-store", "data"),
+    Output("chat-text", "value"),
+    Output("chat-upload", "contents"),
+    Output("chat-upload", "filename"),
+    Output("show-video", "data"),  # updates big video state {show, src}
+    Input("chat-send", "n_clicks"),
+    Input("chat-upload", "contents"),
+    State("chat-upload", "filename"),
+    State("chat-text", "value"),
+    State("chat-store", "data"),
+    State("show-video", "data"),
+    prevent_initial_call=True,
+)
+def handle_chat(n_clicks, upload_contents, upload_filename, text_value, history, video_state):
+    ctx = getattr(dash, "callback_context", None) or getattr(dash, "ctx", None)
+    if not ctx or not ctx.triggered:
+        return no_update, no_update, no_update, no_update, no_update
+
+    history = history or []
+    video_state = video_state or {"show": False, "src": ""}
+
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    print("[debug] handle_chat triggered by:", trigger_id)
+
+    if trigger_id == "chat-send":
+        user_text = (text_value or "").strip()
+        if user_text == "":
+            return history, no_update, no_update, no_update, no_update
+
+        history.append({"role": "user", "kind": "text", "content": user_text})
+        lowered = user_text.lower()
+
+        # /play [optional path], /video, /hide, /stop
+        m = re.search(r"(?:^|\s)/(?:play|video)(?:\s+(.+))?$", user_text, flags=re.IGNORECASE)
+        if m:
+            candidate = (m.group(1) or "").strip()
+            if candidate == "":
+                src = DEFAULT_VIDEO
+            else:
+                if candidate.startswith("/assets/"):
+                    src = candidate
+                elif candidate.startswith("assets/"):
+                    src = "/" + candidate
+                else:
+                    src = f"/assets/static_dash/mocap/exp1/{candidate}"
+            video_state = {"show": True, "src": src}
+            bot_reply = f"Playing: {src}"
+        elif any(k in lowered for k in ("/hide", "/stop", "hide video", "stop video")):
+            video_state = {"show": False, "src": video_state.get("src", "")}
+            bot_reply = "Video hidden."
+        else:
+            bot_reply = "fixed response B" if "key" in lowered else "…"
+
+        history.append({"role": "assistant", "kind": "text", "content": bot_reply})
+        return history, "", no_update, no_update, video_state
+
+    if trigger_id == "chat-upload" and upload_contents is not None:
+        history.append({"role": "user", "kind": "file", "content": "file", "filename": upload_filename})
+        history.append({"role": "assistant", "kind": "text", "content": "fixed response A"})
+        return history, no_update, None, None, no_update
+
+    return history, no_update, no_update, no_update, no_update
+
+
+@app.callback(
+    Output("chat-history", "children"),
+    Input("chat-store", "data")
+)
+def render_history(history):
+    history = history or []
+    children = [
+        bubble(
+            role=msg.get("role", "user"),
+            kind=msg.get("kind", "text"),
+            content=msg.get("content", ""),
+            filename=msg.get("filename"),
+        )
+        for msg in history
+    ]
+    return children
+
+
+# Persistent big video: update only the src and rely on dcc.Loading to show spinner while sleeping
+@app.callback(
+    Output("player", "src"),
+    Input("show-video", "data")
+)
+def update_big_video_src(video_state):
+    print("[debug] update_big_video_src:", video_state)
+    if not video_state or not video_state.get("show"):
+        return ""
+    src = video_state.get("src") or DEFAULT_VIDEO
+    # Artificial wait (2s) so dcc.Loading shows the spinner
+    time.sleep(2)
+    return src
+
+
+@app.callback(
+    Output("niosh-text-small", "children"),
+    Output("niosh-text-big",   "children"),
+    Output("dsspp-text-small", "children"),
+    Output("dsspp-text-big",   "children"),
+    Input("chat-store", "data")   # re-evaluate when chat changes; change to your preferred trigger
+)
+def fill_score_text(_):
+    scores = load_niosh_scores()
+    n_small = format_niosh_text(scores)
+    n_big   = format_niosh_text(scores)
+    d_small = format_dsspp_text()
+    d_big   = format_dsspp_text()
+    return n_small, n_big, d_small, d_big
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
