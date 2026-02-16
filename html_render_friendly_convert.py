@@ -213,7 +213,7 @@ def parse_aspect(s: str) -> str:
 
 def main():
   ap = argparse.ArgumentParser(description="Patch 3D HTML viewer for Dash iframe embedding.")
-  ap.add_argument("--input", "-i", default="assets/static_dash/mocap/exp1/ref_motion_render.html", help="Input HTML path (default: ref_motion_render.html)")
+  ap.add_argument("--input", "-i", default="assets/static_dash/mocap/exp1/ref_motion_render_small_hand.html", help="Input HTML path (default: ref_motion_render.html)")
   ap.add_argument("--output", "-o", default=None, help="Output HTML path (default: <input_stem>_patched.html)")
   ap.add_argument("--aspect", "-a", default="4:3", help='Aspect ratio to preserve (e.g., "16:9" or "1.7777"). Use empty string "" to disable. Default: 16:9')
   ap.add_argument("--z-up", dest="z_up", default="true", choices=["true", "false"], help="Set camera up-axis to Z-up if three.js is detected (default: true)")

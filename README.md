@@ -149,3 +149,11 @@ Leyang Wen
 
 - Built with [Dash by Plotly](https://dash.plotly.com/)
 - Sample videos provided by W3Schools for demonstration purposes
+
+
+## Debug note:
+- If video stop playing on its own, maybe caused by video:
+  ``` 
+    ffmpeg -y -i vid.mp4 \
+  -c copy -movflags +faststart slowed_generated_terrain_lift_fast.mp4;
+  ```

@@ -304,7 +304,7 @@ body{
   padding: 10px 12px;
   border-radius: 14px;
   background: #ffffff;                      /* white tile for light theme */
-  border: 1px solid var(--outline);         /* subtle gray border */
+  border: 0px solid var(--outline);         /* subtle gray border */
   box-shadow: 0 4px 10px rgba(0,0,0,0.08);  /* soft light shadow */
 }
 .msg-user .file-bubble{ border-left: 3px solid var(--bubble-user); }
