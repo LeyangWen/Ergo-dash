@@ -1,315 +1,448 @@
-:root{
-  /* ===== Light Theme Palette ===== */
-  --bg: #ffffff;          /* main background */
-  --text: #0a0f14;        /* dark text */
+:root {
+  --bg: #ffffff;
+  --text: #0a0f14;
   --card: #ffffff;
-  --outline: #0a0f14;
-
-  --pink:  #ffd1d6;       /* same gentle pink accent */
-  --green: #d9f7be;       /* same soft green accent */
-
-  /* chat bubbles / shadows (optional) */
-  --bubble-user: #e6f0ff; /* pale blue user bubble */
-  --bubble-bot:  #f2f2f2; /* light gray assistant bubble */
-  --shadow: rgba(0,0,0,0.1);
+  --outline: #d0d5dd;
+  --pink: #fdf0f1;
+  --green: #e6f5dc;
+  --bubble-user: #e6f0ff;
+  --bubble-bot: #f2f2f2;
+  --shadow: rgba(0,0,0,0.08);
+  --accent: #1a5276;
+  --tab-bg: #f0f4f8;
+  --tab-active: #1a5276;
+  --divider-color: #1a5276;
+  --chat-bg: #e6f5dc;
 }
 
-html, body, #react-entry-point, #_dash-app-content { height: 100%; }
-body{
-  margin: 0;
+html, body, #react-entry-point, #_dash-app-content { height: 100%; margin: 0; }
+body {
   background: var(--bg);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
-/* ---- Base grid from previous step ---- */
-/* ----- New 4-row grid with bottom 60% height ----- */
-.page{
+/* ========================
+   PAGE: flex column
+   ======================== */
+.page {
   height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 14px;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+/* ========================
+   TABS — compact, left-aligned
+   ======================== */
+.tab-bar {
+  flex: 0 0 auto;
+}
+.tab-bar .tab-container {
+  display: flex;
+  gap: 0;
+  justify-content: flex-start;
+}
+.tab-item {
+  padding: 7px 18px !important;
+  border: 1px solid var(--outline) !important;
+  border-bottom: none !important;
+  border-radius: 8px 8px 0 0 !important;
+  background: var(--tab-bg) !important;
+  color: #555 !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.tab-item:hover {
+  background: #e2e8f0 !important;
+}
+.tab-item--selected {
+  background: var(--tab-active) !important;
+  color: #fff !important;
+  border-color: var(--tab-active) !important;
+  font-weight: 700 !important;
+}
+
+/* ========================
+   SECTION HEADERS — large, black
+   ======================== */
+.section-headers {
+  flex: 0 0 auto;
+  display: flex;
+  padding: 6px 0 2px;
+}
+.header-input {
+  flex: 1;
+  text-align: center;
+  font-weight: 900;
+  font-size: 24px;
+  color: #0a0f14;
+  letter-spacing: 0.5px;
+}
+.header-output {
+  flex: 2;
+  text-align: center;
+  font-weight: 900;
+  font-size: 24px;
+  color: #0a0f14;
+  letter-spacing: 0.5px;
+  margin-left: 60px;  /* account for wider divider column + gap */
+}
+
+/* ========================
+   MAIN GRID — 3 columns (input | divider | output)
+   2x more space between input and output
+   ======================== */
+.grid-body {
+  flex: 1 1 auto;
   display: grid;
-  gap: 14px;
-  padding: 14px;
-  grid-template-columns: 2fr 1fr 0.9fr;
-  grid-template-rows: 1fr 3fr 0.2fr 1fr 3fr;
+  column-gap: 10px;
+  row-gap: 14px;
+  grid-template-columns: 1fr 60px 2fr;
+  grid-template-rows: 1fr 1fr;
   grid-template-areas:
-    "video1     niosh      chat"
-    "video1     dsspp      chat"
-    "divider    divider    chat"
-    "video_big  niosh_big  chat"
-    "video_big  dsspp_big  chat";
+    "orig_video     divider   top_output"
+    "chatbox        divider   bot_output";
+  min-height: 0;
 }
 
-/* area hooks */
-.video1     { grid-area: video1; }
-.niosh      { grid-area: niosh; }
-.dsspp      { grid-area: dsspp; }
-.niosh_big  { grid-area: niosh_big; }
-.dsspp_big  { grid-area: dsspp_big; }
-.video_big  { grid-area: video_big; }
-.chat       { grid-area: chat; display: flex; flex-direction: column; }
-.divider    { grid-area: divider;    pointer-events: none; height: 100%; }
+/* Grid area hooks */
+.orig-video-area   { grid-area: orig_video; }
+.top-output-area   { grid-area: top_output; }
+.chatbox-area      { grid-area: chatbox; display: flex; flex-direction: column; background: var(--chat-bg) !important; }
+.bot-output-area   { grid-area: bot_output; }
 
-
-/* two square videos inside video1 */
-.video-grid{
-  height: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.video-grid .player{
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 12px;
-  object-position: 20% center;   /* ⬅️ keep left side, crop right */
-}
-.square-frame{
-  width: 100%;
-  position: relative;
-  padding-top: 100%; /* forces square */
-  border-radius: 12px;
-  overflow: hidden;
-}
-.square-iframe{
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  border: 0;
+/* ========================
+   VERTICAL DIVIDER
+   ======================== */
+.grid-body::before {
+  content: "";
+  grid-area: divider;
+  background: var(--divider-color);
+  border-radius: 3px;
+  width: 5px;
+  justify-self: center;
 }
 
-/* dsspp internal layout: 2 squares + 1 wide */
-.ssp-grid{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  /*grid-auto-rows: 1fr;*/
-  gap: 10px;
-  margin-bottom: -5px;       /* add space before the text */
-  max-height: 85%;          /* grid uses up to 60% of card */
-  overflow: hidden;         /* prevents stretching */
-}
-.ssp-grid .square{
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 10px;
-}
-.ssp-grid .wide{
-  grid-column: 1 / -1;
-  width: 100%;
-  height: auto;
-  border-radius: 10px;
-  object-fit: cover;
-}
-
-/* badges (top-left, bottom-left) */
-.card > .card-badge{
-  position: absolute;
-  top: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: inline-block;
-  width: auto;
-  white-space: nowrap;
-  padding: 6px 10px;
-  border-radius: 10px;
-  font-weight: 1000;
-  background: #e6f0ff;
-  color: #0b3a7a;
-  border: 2px solid #9bbcff;
-  z-index: 10;
-  pointer-events: none;
-}
-
-/* keep your existing .card, .placeholder, chat styles, etc. */
-
-.card{
+/* ========================
+   CARDS
+   ======================== */
+.card {
   background: var(--card);
   border: 1px solid var(--outline);
-  border-radius: 16px;
+  border-radius: 14px;
   padding: 10px;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.25);
+  padding-top: 42px;
+  box-shadow: 0 4px 12px var(--shadow);
   position: relative;
   overflow: hidden;
-  padding-top: 20px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* No badge variant */
+.card.no-badge {
+  padding-top: 10px;
 }
 
-/*!*allow badge to poke out, but nothing else*!*/
-/*.video1, .niosh, .dsspp, .video_big, .niosh_big, .dsspp_big, .chat, .divider {*/
-/*  min-height: 0;*/
-/*  overflow: hidden; !* clip content inside the grid cell *!*/
-/*}*/
+.pink  { background: var(--pink) !important; }
+.green { background: var(--green) !important; }
 
-/*!* Card + inner wrapper: only the badge is allowed to poke out *!*/
-/*.card { position: relative; overflow: visible; }   !* badge can overflow *!*/
-/*.card-body { height: 100%; min-height: 0; overflow: hidden; }*/
-
-/* The inner grid should also be allowed to shrink */
-.video-grid { height: 100%; min-height: 0; }
-
-.pink { background: var(--pink); }
-.green{ background: var(--green); }
-/*.video1    { grid-area: video1; }*/
-/*.view3d    { grid-area: view3d; }*/
-/*.video_big { grid-area: video_big; }*/
-/*.ergo_score{ grid-area: ergo_score; }*/
-/*.reco_motion{ grid-area: reco; }*/
-/*.chat      { grid-area: chat; display: flex; flex-direction: column; }*/
-
-/* NIOSH badge */
-.badge.niosh{
-  grid-column: 2 / 3;
-  grid-row: 1 / 2;
-  justify-self: center;
-  align-self: start;
+/* Card badge */
+.card > .card-badge {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 5px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 15px;
   background: #e6f0ff;
   color: #0b3a7a;
-  border: 2px solid #9bbcff;
-  font-weight: 800;
+  border: 1.5px solid #9bbcff;
+  z-index: 10;
+  pointer-events: none;
+  line-height: 1.3;
+}
+
+/* ========================
+   OUTPUT INNER — VERTICAL: video fills height, scores below
+   ======================== */
+.output-inner-vertical {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 8px;
+}
+/* Video fills available height */
+.output-inner-vertical .motion-video,
+.output-inner-vertical .iframe-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+}
+/* Scores sit at bottom, don't grow */
+.output-inner-vertical .scores-bottom {
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow-y: auto;
+}
+/* Loading wrapper fills space */
+.output-inner-vertical #video-stage,
+.output-inner-vertical .dash-spinner-container,
+.output-inner-vertical ._dash-loading {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.output-inner-vertical #video-stage .player {
+  flex: 1 1 auto;
+  min-height: 0;
+  object-fit: cover;
+}
+
+/* ========================
+   VIDEO PLAYERS
+   ======================== */
+.player {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.orig-video-area .player {
+  object-fit: cover;
+  object-position: 20% center;
+}
+
+/* ========================
+   3D VIEWPORT IFRAME
+   ======================== */
+.iframe-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.viewport-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+/* ========================
+   SCORES — larger fonts
+   ======================== */
+.scores-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.score-heading {
+  margin: 0;
+  padding: 4px 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+.score-pre {
+  margin: 0;
+  padding: 4px 8px;
+  color: var(--text);
+  font: 600 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  flex-shrink: 0;
+}
+
+/* 3D SSPP image grid — no cropping */
+.ssp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.ssp-grid .ssp-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.5);
+}
+/* Back compression force slider */
+.ssp-back-img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.5);
+  flex-shrink: 0;
+}
+
+/* ========================
+   CHAT
+   ======================== */
+.chat-history {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+}
+
+.chat-input-row {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--outline);
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(6px);
+}
+
+.upload-area {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--outline);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+.upload-area:hover { background: #f2f4f7; }
+.upload-plus { font-weight: 900; font-size: 18px; line-height: 18px; color: #0a0f14; }
+
+.chat-textarea {
+  width: 100%;
+  height: 60px;
+  min-height: 36px;
+  max-height: 80px;
+  resize: none;
   padding: 6px 10px;
   border-radius: 10px;
-  transform: translateY(-10px);
-  z-index: 2;
+  border: 1px solid var(--outline);
+  background: #fff;
+  color: #0a0f14;
+  outline: none;
+  font-size: 13px;
+  line-height: 18px;
+  box-sizing: border-box;
+}
+.chat-textarea:focus { border-color: var(--accent); }
+
+.chat-send-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--outline);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chat-send-btn:hover { opacity: 0.9; }
+
+/* Message bubbles */
+.msg { max-width: 88%; display: inline-flex; }
+.msg-user { align-self: flex-end; }
+.msg-assistant { align-self: flex-start; }
+
+.msg-text {
+  padding: 8px 12px;
+  border-radius: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.msg-user .msg-text {
+  background: var(--bubble-user);
+  color: #0a0f14;
+  border-bottom-right-radius: 4px;
+}
+.msg-assistant .msg-text {
+  background: var(--bubble-bot);
+  color: #0a0f14;
+  border-bottom-left-radius: 4px;
 }
 
-/*all ergo score text format*/
-.score-pre{
-  margin: 8px 0 0;
-  padding: 10px 12px;
-  color: var(--text);
-  /*white-space: pre-wrap;          !* keep newlines; wrap long lines *!*/
-  font: 600 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+/* File bubble */
+.file-bubble {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--outline);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.msg-user .file-bubble { border-left: 3px solid var(--bubble-user); }
+.msg-assistant .file-bubble { border-left: 3px solid var(--bubble-bot); }
+.file-ico { font-size: 16px; color: #333; }
+.file-title { font-weight: 700; font-size: 13px; }
+
+/* Chat image thumbnails */
+.chat-thumbnail {
+  max-width: 160px;
+  max-height: 120px;
+  border-radius: 10px;
+  border: 1px solid var(--outline);
+  object-fit: contain;
+  background: #fff;
+}
+.img-bubble {
+  padding: 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.msg-user .img-bubble { background: var(--bubble-user); }
+.msg-assistant .img-bubble { background: var(--bubble-bot); }
+.img-bubble-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
 }
 
-/* Placeholders elsewhere */
-.placeholder{
+/* ========================
+   MISC
+   ======================== */
+.graph { height: 100% !important; }
+.placeholder {
   height: 100%;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
   text-align: center;
   font-weight: 700;
-  background: rgba(0,0,0,0.25);
+  background: rgba(0,0,0,0.15);
 }
-.video_big video {
-  width: 100%;
-  max-width: 800px;
-  height: auto;
-  display: block;
-  margin: 0 auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);  /* softer for light UI */
-  overflow: hidden;        /* helps enforce rounded corners */
-  background: #000;        /* fallback behind transparent frames */
-  clip-path: inset(0 round 12px);  /* guarantees corners even if parent clips */
-}
-.graph{ height: 100% !important; }
-.player{ width: 100%; height: 100%; object-fit: contain; border-radius: 12px; }
-
-/* ---------- CHAT STYLES ---------- */
-.chat-history{
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  scroll-behavior: smooth;
-}
-
-/* Input row sticks to bottom */
-.chat-input-row{
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  padding: 10px;
-  border-top: 1px solid var(--outline);
-  background: rgba(255,255,255,0.7);   /* soft translucent white */
-  backdrop-filter: blur(6px);          /* gentle frosted effect */
-}
-
-/* Upload button (left + icon) */
-.upload-area{
-  display: inline-grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--outline);
-  border-radius: 12px;
-  background: #ffffff;                 /* white button */
-  cursor: pointer;
-}
-.upload-area:hover{ background: #f2f4f7; }   /* subtle gray hover */
-.upload-plus{ font-weight: 900; font-size: 20px; line-height: 20px; color: #0a0f14; }
-
-/* Textarea (center) */
-.chat-textarea{
-  width: 100%;
-  height: 90px;                        /* exact height */
-  min-height: 38px;
-  max-height: 120px;
-  resize: none;
-  padding: 6px 10px;                   /* less padding to match buttons */
-  border-radius: 12px;
-  border: 1px solid var(--outline);
-  background: #ffffff;                 /* white input field */
-  color: #0a0f14;                      /* dark readable text */
-  outline: none;
-  font-size: 14px;
-  line-height: 20px;                   /* keep text vertically centered */
-  box-sizing: border-box;              /* ensures total height includes padding */
-}
-.chat-textarea:focus{ border-color: #0a0f14; }
-
-/* Send button (right) */
-.chat-send-btn{
-  height: 38px;                        /* same height */
-  padding: 0 16px;
-  border-radius: 12px;
-  border: 1px solid var(--outline);
-  background: #ffffff;                 /* match textarea */
-  color: #0a0f14;                      /* dark text */
-  font-weight: 700;
-  cursor: pointer;
-}
-.chat-send-btn:hover{ background: #f2f4f7; }   /* subtle gray hover */
-/* Message bubbles */
-.msg{ max-width: 86%; display: inline-flex; }
-.msg-user{ align-self: flex-end; }
-.msg-assistant{ align-self: flex-start; }
-
-.msg-text{
-  padding: 10px 12px;
-  border-radius: 14px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.08);     /* softer shadow for light UI */
-}
-.msg-user .msg-text{
-  background: var(--bubble-user);              /* pale blue */
-  color: #0a0f14;                              /* dark text */
-  border-top-right-radius: 6px;
-}
-.msg-assistant .msg-text{
-  background: var(--bubble-bot);               /* light gray */
-  color: #0a0f14;                              /* dark text */
-  border-top-left-radius: 6px;
-}
-
-/* File bubble */
-.file-bubble{
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: #ffffff;                      /* white tile for light theme */
-  border: 0px solid var(--outline);         /* subtle gray border */
-  box-shadow: 0 4px 10px rgba(0,0,0,0.08);  /* soft light shadow */
-}
-.msg-user .file-bubble{ border-left: 3px solid var(--bubble-user); }
-.msg-assistant .file-bubble{ border-left: 3px solid var(--bubble-bot); }
-.file-ico{ font-size: 18px; color: #333; }  /* dark icon for contrast */
-.file-title{ font-weight: 700; }
-.file-name{ opacity: 0.85; font-size: 12px; }
-
