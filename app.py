@@ -29,13 +29,21 @@ SCAN_EXTS = {
 }
 
 
+_EXP_OBJECT_MAP = {
+    "exp1": "box", "exp1_v2": "box",
+    "exp2": "handle", "exp2_v2": "handle",
+    "exp3": "timber", "exp3_v2": "timber",
+    "exp4": "bag", "exp4_v2": "bag",
+}
+
+
 def get_experiment_paths(exp: str) -> dict:
     """Return all asset paths for a given experiment (e.g. 'exp1')."""
     return {
-        "gen_video": f"/assets/static_dash/generated/{exp}/slowed_generated_terrain_lift_fast.mp4",
-        "orig_video": f"/assets/static_dash/mocap/{exp}/bad_raw.mov",
+        "gen_video": f"/assets/static_dash/generated/{exp}/short.mp4",
+        "orig_video": f"/assets/static_dash/mocap/{exp}/input.mov",
         "mocap_html": f"/assets/static_dash/mocap/{exp}/ref_motion_render_small_hand_patched.html?v=1",
-        "mocap_video": f"/assets/static_dash/mocap/{exp}/bad_smplx.mov",
+        "mocap_video": f"/assets/static_dash/mocap/{exp}/short.mov",
         "sspp_cap_left": f"/assets/static_dash/mocap/{exp}/2-2-humanoid.png",
         "sspp_cap_right": f"/assets/static_dash/mocap/{exp}/2-2-stick-side.png",
         "sspp_cap_wide": f"/assets/static_dash/mocap/{exp}/2-2-back.png",
@@ -44,10 +52,11 @@ def get_experiment_paths(exp: str) -> dict:
         "sspp_gen_wide": f"/assets/static_dash/generated/{exp}/1-back.png",
         "score_gen_path": Path(f"assets/static_dash/generated/{exp}/NIOSH_score.py"),
         "score_cap_path": Path(f"assets/static_dash/mocap/{exp}/NIOSH_score.py"),
+        "object_thumbnail": f"/assets/objects/{_EXP_OBJECT_MAP.get(exp, 'box')}.png",
     }
 
 
-DEFAULT_PATHS = get_experiment_paths("exp1")
+DEFAULT_PATHS = get_experiment_paths("exp1_v2")
 
 
 # ------------------------
@@ -94,17 +103,27 @@ def format_niosh_text(scores: dict) -> str:
         try:
             li_val = float(li)
             if li_val <= 1.0:
-                li_str = f"Lifting Index (LI): {li}  \u2264 1 \u2705"
+                li_str = f"Lifting Index (LI): {li_val:.2f}  \u2264 1 \u2705"
             elif li_val <= 3.0:
-                li_str = f"Lifting Index (LI): {li}  > 1 \u26a0\ufe0f"
+                li_str = f"Lifting Index (LI): {li_val:.2f}  > 1 \u26a0\ufe0f"
             else:
-                li_str = f"Lifting Index (LI): {li}  > 3 \u274c"
+                li_str = f"Lifting Index (LI): {li_val:.2f}  > 3 \u274c"
         except (ValueError, TypeError):
             li_str = f"Lifting Index (LI): {li}"
     else:
         li_str = "Lifting Index (LI): \u2014"
 
-    rwl_str = f"Recommended Weight Limit (RWL): {rwl}" if rwl is not None else "Recommended Weight Limit (RWL): \u2014"
+    if rwl is not None:
+        try:
+            rwl_val = float(rwl)
+            rwl_str = f"Recommended Weight Limit (RWL): {rwl_val:.2f} kg"
+        except (ValueError, TypeError):
+            rwl_text = str(rwl).strip()
+            if not rwl_text.lower().endswith("kg"):
+                rwl_text = f"{rwl_text} kg"
+            rwl_str = f"Recommended Weight Limit (RWL): {rwl_text}"
+    else:
+        rwl_str = "Recommended Weight Limit (RWL): \u2014"
 
     return f"{li_str}\n{rwl_str}"
 
@@ -143,8 +162,7 @@ def is_motion_safe(scores: dict) -> bool | None:
         return None
 
 
-PLACEHOLDER_SCAN = "/assets/placeholder_scan.svg"
-PLACEHOLDER_OBJECT = "/assets/placeholder_object.svg"
+PLACEHOLDER_SCAN = "/assets/uploads/scan_thumbnail.png"
 
 
 def bubble(role, kind, content, filename=None, image_src=None, image_label=None):
@@ -168,22 +186,74 @@ def bubble(role, kind, content, filename=None, image_src=None, image_label=None)
     return html.Div(inner, className=f"msg msg-{role}")
 
 
+_PRELOADED_TASK_TEXT = {
+    "exp2_v2": "Task description: Lift a 10 lbs. container w/ handle from the floor near position (8.5, 4)",
+    "exp3_v2": "Task description: Lift a 3 ft long lumber from the floor near position (8.5, 4)",
+    "exp4_v2": "Task description: Lift a 25 lbs.  bag from the floor near position (8.5, 4)",
+}
+
+_PRELOADED_PARAMS = {
+    "exp2_v2": (
+        'Extracted task parameters:\n'
+        '{\n'
+        '"task":                "lift",\n'
+        '"weight_kg":      4.54,\n'
+        '"start_h_m":      0.0,\n'
+        '"start_loc_m":  [8.5, 4.0]\n'
+        '"object_type":   "container w/ handle",\n'
+        '}'
+    ),
+    "exp3_v2": (
+        'Extracted task parameters:\n'
+        '{\n'
+        '"task":                "lift",\n'
+        '"size_m":           [0.9, 0.1, 0.05],\n'
+        '"start_h_m":      0.0,\n'
+        '"start_loc_m":  [8.5, 4.0]\n'
+        '"object_type":   "lumber",\n'
+        '}'
+    ),
+    "exp4_v2": (
+        'Extracted task parameters:\n'
+        '{\n'
+        '"task":                "lift",\n'
+        '"weight_kg":      8.0,\n'
+        '"start_h_m":      0.0,\n'
+        '"start_loc_m":  [8.5, 4.0]\n'
+        '"object_type":   "bag",\n'
+        '}'
+    ),
+}
+
+# _PRELOADED_VERDICT = {
+#     # TODO: Replace placeholder verdicts with actual verdicts per scenario
+#     "exp2_v2": ("Posture improvement alone is not sufficient (LI > 1), conduct what-if experiments: \n"
+#                 "   1) reduce the weight,\n"
+#                 "   2) increasing the lift height."),
+#     "exp3_v2": ("Posture improvement alone is not sufficient (LI > 1), conduct what-if experiments: \n"
+#                 "   1) reduce the weight,\n"
+#                 "   2) increasing the lift height."),
+#     "exp4_v2": ("Posture improvement alone is not sufficient (LI > 1), conduct what-if experiments: \n"
+#                 "   1) reduce the weight,\n"
+#                 "   2) increasing the lift height."),
+# }
+
+
 def _get_preloaded_chat(exp: str) -> list:
     """Return a preloaded chat history for scenarios 2-4."""
+    paths = get_experiment_paths(exp)
     return [
         {"role": "user", "kind": "file", "content": "file", "filename": "site_scan.glb"},
         {"role": "assistant", "kind": "image", "content": "Received 3D scan of site.",
          "image_src": PLACEHOLDER_SCAN, "image_label": "3D Site Scan"},
         {"role": "user", "kind": "text",
-         "content": "Task description: Lift a 10 kg container from the floor near position (8.5, 4)"},
+         "content": _PRELOADED_TASK_TEXT.get(exp, "Task description: ...")},
         {"role": "assistant", "kind": "text",
-         "content": 'Extracted task parameters:\n{\n"task":                "lift",\n"object_type":   "container",\n"weight_kg":      10.0,\n"size_m":           [0.4, 0.4, 0.4],\n"start_h_m":      0.0,\n"start_loc_m":  [8.5, 4.0]\n}'},
+         "content": _PRELOADED_PARAMS.get(exp, "Extracted task parameters: ...")},
         {"role": "assistant", "kind": "image", "content": "",
-         "image_src": PLACEHOLDER_OBJECT, "image_label": "Object Model"},
-        {"role": "assistant", "kind": "text",
-         "content": ("Posture improvement alone is not sufficient (LI > 1), conduct what-if experiments: \n"
-                     "   1) reduce the weight,\n"
-                     "   2) increasing the lift height.")},
+         "image_src": paths["object_thumbnail"], "image_label": "Object Model"},
+        # {"role": "assistant", "kind": "text",
+        #  "content": _PRELOADED_VERDICT.get(exp, "...")},
     ]
 
 
@@ -199,31 +269,33 @@ app.layout = html.Div(
         dcc.Store(id="scan-state", data={"has_scan": False, "path": ""}),
         dcc.Store(id="task-state", data={"has_task": False, "json_path": ""}),
         dcc.Store(id="verdict-state", data={"ready": False, "safe": None}),
-        dcc.Store(id="active-experiment", data="exp1"),
+        dcc.Store(id="active-experiment", data="exp1_v2"),
         # Per-tab chat memory: {exp1: [...], exp2: [...], ...}
         dcc.Store(id="chat-cache", data={
-            "exp1": [],
-            "exp2": _get_preloaded_chat("exp2"),
-            "exp3": _get_preloaded_chat("exp3"),
-            "exp4": _get_preloaded_chat("exp4"),
+            "exp1_v2": [],
+            "exp2_v2": _get_preloaded_chat("exp2_v2"),
+            "exp3_v2": _get_preloaded_chat("exp3_v2"),
+            "exp4_v2": _get_preloaded_chat("exp4_v2"),
         }),
 
         # ---- Tabs (compact, left-aligned, with + button) ----
         dcc.Tabs(
             id="experiment-tabs",
-            value="exp1",
+            value="exp1_v2",
             className="tab-bar",
             children=[
-                dcc.Tab(label="Scenario 1", value="exp1", className="tab-item", selected_className="tab-item--selected"),
-                dcc.Tab(label="Scenario 2", value="exp2", className="tab-item", selected_className="tab-item--selected"),
-                dcc.Tab(label="Scenario 3", value="exp3", className="tab-item", selected_className="tab-item--selected"),
-                dcc.Tab(label="Scenario 4", value="exp4", className="tab-item", selected_className="tab-item--selected"),
+                dcc.Tab(label="Scenario 1", value="exp1_v2", className="tab-item", selected_className="tab-item--selected"),
+                dcc.Tab(label="Scenario 2", value="exp2_v2", className="tab-item", selected_className="tab-item--selected"),
+                dcc.Tab(label="Scenario 3", value="exp3_v2", className="tab-item", selected_className="tab-item--selected"),
+                dcc.Tab(label="Scenario 4", value="exp4_v2", className="tab-item", selected_className="tab-item--selected"),
+                dcc.Tab(label="+", value="exp-add", className="tab-item tab-item-plus", disabled=True),
             ],
         ),
 
         # ---- Section headers (large, black) ----
         html.Div(className="section-headers", children=[
             html.Div("Input", className="header-input"),
+            html.Div(),  # spacer for divider column
             html.Div("Output", className="header-output"),
         ]),
 
@@ -235,9 +307,9 @@ app.layout = html.Div(
                 html.Video(
                     id="orig-video",
                     src=DEFAULT_PATHS["orig_video"],
-                    controls=True,
+                    controls=False,
                     autoPlay=True,
-                    loop=True,
+                    loop=False,
                     muted=True,
                     className="player",
                 ),
@@ -246,26 +318,26 @@ app.layout = html.Div(
             # Top-right: Merged — 3D motion + Captured scores
             html.Div(className="card pink top-output-area", children=[
                 html.Div("Current Task Motion", className="card-badge"),
-                html.Div(className="output-inner-vertical", children=[
-                    # Top: 3D motion (video or iframe based on flag)
-                    html.Video(
-                        id="viewport-video",
-                        src=DEFAULT_PATHS["mocap_video"],
-                        controls=True,
-                        autoPlay=True,
-                        loop=True,
-                        muted=True,
-                        className="player motion-video",
-                    ) if USE_VIDEO_FOR_3D_VIEWER else
-                    html.Div(className="iframe-frame", children=[
-                        html.Iframe(
-                            id="viewport-iframe",
-                            src=DEFAULT_PATHS["mocap_html"],
-                            className="viewport-iframe",
-                        )
+                html.Div(className="output-inner-split", children=[
+                    html.Div(className="media-pane", children=[
+                        html.Video(
+                            id="viewport-video",
+                            src=DEFAULT_PATHS["mocap_video"],
+                            controls=False,
+                            autoPlay=True,
+                            loop=False,
+                            muted=True,
+                            className="player motion-video",
+                        ) if USE_VIDEO_FOR_3D_VIEWER else
+                        html.Div(className="iframe-frame", children=[
+                            html.Iframe(
+                                id="viewport-iframe",
+                                src=DEFAULT_PATHS["mocap_html"],
+                                className="viewport-iframe",
+                            )
+                        ]),
                     ]),
-                    # Bottom: Captured ergo scores
-                    html.Div(className="scores-content scores-bottom", children=[
+                    html.Div(className="scores-content scores-pane", children=[
                         html.H4("NIOSH Lifting Equation", className="score-heading"),
                         html.Pre(id="niosh-text-captured", className="score-pre"),
                         html.H4("3D SSPP", className="score-heading"),
@@ -293,7 +365,7 @@ app.layout = html.Div(
                     ),
                     dcc.Textarea(
                         id="chat-text",
-                        placeholder="Ask anything\u2026 Try: Task description: ...  or type lower weight",
+                        placeholder="Try: Task description: ... ",
                         className="chat-textarea",
                         maxLength=4000,
                     ),
@@ -304,29 +376,29 @@ app.layout = html.Div(
             # Bottom-right: Merged — Generated video + Generated scores
             html.Div(className="card green bot-output-area", children=[
                 html.Div("Generated Intervention", className="card-badge"),
-                html.Div(className="output-inner-vertical", children=[
-                    # Top: Generated motion video
-                    dcc.Loading(
-                        id="video-loading",
-                        type="circle",
-                        children=html.Div(
-                            id="video-stage",
-                            children=[
-                                html.Video(
-                                    id="player",
-                                    src="",
-                                    controls=True,
-                                    autoPlay=True,
-                                    loop=True,
-                                    muted=True,
-                                    preload="auto",
-                                    className="player motion-video",
-                                ),
-                            ],
+                html.Div(className="output-inner-split", children=[
+                    html.Div(className="media-pane", children=[
+                        dcc.Loading(
+                            id="video-loading",
+                            type="circle",
+                            children=html.Div(
+                                id="video-stage",
+                                children=[
+                                    html.Video(
+                                        id="player",
+                                        src="",
+                                        controls=False,
+                                        autoPlay=False,
+                                        loop=False,
+                                        muted=True,
+                                        preload="auto",
+                                        className="player motion-video",
+                                    ),
+                                ],
+                            ),
                         ),
-                    ),
-                    # Bottom: Generated ergo scores
-                    html.Div(className="scores-content scores-bottom", children=[
+                    ]),
+                    html.Div(className="scores-content scores-pane", children=[
                         html.H4("NIOSH Lifting Equation", className="score-heading"),
                         html.Pre(id="niosh-text-generated", className="score-pre"),
                         html.H4("3D SSPP", className="score-heading"),
@@ -376,7 +448,7 @@ def update_all_content(tab_value, verdict_state):
     viewer_src = paths["mocap_video"] if USE_VIDEO_FOR_3D_VIEWER else paths["mocap_html"]
 
     # For scenarios 2-4, always show generated results
-    is_preloaded = tab_value in ("exp2", "exp3", "exp4")
+    is_preloaded = tab_value in ("exp2_v2", "exp3_v2", "exp4_v2")
 
     if is_preloaded or (verdict_state and verdict_state.get("ready")):
         gen_scores = load_niosh_scores(paths["score_gen_path"])
@@ -457,7 +529,7 @@ def handle_chat(n_clicks, upload_contents, upload_filename, text_value,
     task_state = task_state or {"has_task": False, "json_path": ""}
     cache = cache or {}
     verdict_state = {"ready": False, "safe": None}
-    active_exp = active_exp or "exp1"
+    active_exp = active_exp or "exp1_v2"
     paths = get_experiment_paths(active_exp)
 
     def _save_and_return(hist, text_val, upl_c, upl_f, vid, scan, task, verd):
@@ -467,38 +539,8 @@ def handle_chat(n_clicks, upload_contents, upload_filename, text_value,
 
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    def maybe_finish_and_verdict():
-        nonlocal history, video_state, verdict_state
-        if scan_state.get("has_scan") and task_state.get("has_task"):
-            scores = load_niosh_scores(paths["score_gen_path"])
-            verdict = is_motion_safe(scores)
-            video_state = {"show": True, "src": paths["gen_video"]}
-
-            time.sleep(0.75)
-            if verdict is None:
-                msg = (
-                    "I have both the 3D scan and task description. "
-                    "However, the available metrics are incomplete for a safety decision. "
-                    "Please ensure LI and the L5/S1 back force are present."
-                )
-                verdict_state["ready"] = True
-            else:
-                msg = (
-                    "Techniques for lifting boxes from hard-to-reach positions (e.g., back of pallets) \n"
-                    "Lift with your legs, not back.\n"
-                    "Bring box closer to body by:\n"
-                    "   1) step on the ledge,\n"
-                    "   2) straddle the box corner.\n")
-            if verdict:
-                msg = "You can safely perform the task by following the example motion shown."
-                verdict_state.update({"ready": True, "safe": True})
-            else:
-                msg = (
-                    "Posture improvement alone is not sufficient (LI > 1), conduct what-if experiments: \n"
-                    "   1) reduce the weight,\n"
-                    "   2) increasing the lift height.\n")
-                verdict_state.update({"ready": True, "safe": False})
-            history.append({"role": "assistant", "kind": "text", "content": msg})
+    # Verdict is now handled by a separate chained callback (generate_verdict)
+    # to allow the loading spinner to show between steps
 
     if trigger_id == "chat-upload" and upload_contents is not None:
         if upload_filename and is_scan_file(upload_filename):
@@ -509,7 +551,6 @@ def handle_chat(n_clicks, upload_contents, upload_filename, text_value,
                 time.sleep(0.75)
                 history.append({"role": "assistant", "kind": "image", "content": "Received 3D scan of site.",
                                 "image_src": PLACEHOLDER_SCAN, "image_label": "3D Site Scan"})
-                maybe_finish_and_verdict()
                 return _save_and_return(history, no_update, None, None, video_state, scan_state, task_state, verdict_state)
             except Exception as e:
                 history.append({"role": "assistant", "kind": "text", "content": f"Failed to save upload: {e}"})
@@ -537,11 +578,10 @@ def handle_chat(n_clicks, upload_contents, upload_filename, text_value,
                 sample = '''
 {
 "task":                "lift",
-"object_type":   "container",
-"weight_kg":      10.0,
-"size_m":           [0.4, 0.4, 0.4],
+"weight_kg":      9.07,
 "start_h_m":      0.0,
-"start_loc_m":  [8.5, 4.0]
+"start_loc_m":  [8.5, 4.0],
+"object_type":   "container",
 }
 '''
                 time.sleep(0.75)
@@ -550,11 +590,11 @@ def handle_chat(n_clicks, upload_contents, upload_filename, text_value,
                     "content": f"Extracted task parameters: {sample}Saved to {json_path}"
                 })
                 # Show object model thumbnail
+                exp_paths = get_experiment_paths(active_exp or "exp1_v2")
                 history.append({
                     "role": "assistant", "kind": "image", "content": "",
-                    "image_src": PLACEHOLDER_OBJECT, "image_label": "Object Model"
+                    "image_src": exp_paths["object_thumbnail"], "image_label": "Object Model"
                 })
-                maybe_finish_and_verdict()
                 return _save_and_return(history, "", no_update, no_update, video_state, scan_state, task_state, verdict_state)
             except Exception as e:
                 history.append({"role": "assistant", "kind": "text",
@@ -614,6 +654,42 @@ def render_history(history):
     ]
 
 
+# Chained callback: when both scan and task are ready, show spinner then set verdict
+@app.callback(
+    Output("verdict-state", "data", allow_duplicate=True),
+    Output("video-stage", "children"),
+    Input("scan-state", "data"),
+    Input("task-state", "data"),
+    State("active-experiment", "data"),
+    prevent_initial_call=True,
+)
+def generate_verdict(scan_state, task_state, active_exp):
+    if not scan_state or not scan_state.get("has_scan"):
+        return no_update, no_update
+    if not task_state or not task_state.get("has_task"):
+        return no_update, no_update
+
+    active_exp = active_exp or "exp1_v2"
+    paths = get_experiment_paths(active_exp)
+
+    # This sleep triggers the dcc.Loading spinner on video-stage
+    time.sleep(1.7)
+
+    # Return the verdict and re-create the video element with the src set
+    verdict = {"ready": True, "safe": True}
+    video_el = html.Video(
+        id="player",
+        src=paths["gen_video"],
+        controls=False,
+        autoPlay=False,
+        loop=False,
+        muted=True,
+        preload="auto",
+        className="player motion-video",
+    )
+    return verdict, video_el
+
+
 # Auto-scroll chat to bottom whenever messages update
 app.clientside_callback(
     """
@@ -630,8 +706,49 @@ app.clientside_callback(
 )
 
 
+# For scenarios 2-4: pause generated video, play it after mocap video ends
+app.clientside_callback(
+    """
+    function(activeExp, genSrc) {
+        var mocap = document.getElementById('viewport-video');
+        var gen = document.getElementById('player');
+        if (!mocap || !gen) return window.dash_clientside.no_update;
+
+        var isScenario1 = (activeExp === 'exp1_v2');
+        var hasGenSrc = gen.src && !gen.src.endsWith('/');
+
+        // Clean up previous listener
+        if (mocap._onEndedHandler) {
+            mocap.removeEventListener('ended', mocap._onEndedHandler);
+            mocap._onEndedHandler = null;
+        }
+
+        if (isScenario1 && hasGenSrc) {
+            // Scenario 1: autoplay generated video immediately when src is set
+            gen.currentTime = 0;
+            gen.play().catch(function(){});
+        } else if (!isScenario1 && hasGenSrc) {
+            // Scenarios 2-4: pause generated video, play after mocap ends
+            gen.pause();
+            gen.currentTime = 0;
+            mocap._onEndedHandler = function() {
+                gen.currentTime = 0;
+                gen.play().catch(function(){});
+            };
+            mocap.addEventListener('ended', mocap._onEndedHandler);
+        }
+
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("orig-video", "id"),
+    Input("active-experiment", "data"),
+    Input("player", "src"),
+)
+
+
 if __name__ == "__main__":
     app.run(debug=False)
 """
-Task description: Lift a 10 kg, 40 cm box without handles from the floor near position (8.5, 4) in the scan
+Task description: Lift a 20lbs. container from the floor near position (8.5, 4)
 """

@@ -57,6 +57,19 @@ body {
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
+.tab-item-plus {
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  padding: 7px 0 !important;
+  text-align: center !important;
+  flex: 0 0 44px;
+}
+.tab-item-plus[disabled],
+.tab-item-plus.tab--disabled {
+  opacity: 1 !important;
+  cursor: default !important;
+}
 .tab-item:hover {
   background: #e2e8f0 !important;
 }
@@ -72,11 +85,12 @@ body {
    ======================== */
 .section-headers {
   flex: 0 0 auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: 0.7fr 60px 2fr;
+  column-gap: 10px;
   padding: 6px 0 2px;
 }
 .header-input {
-  flex: 1;
   text-align: center;
   font-weight: 900;
   font-size: 24px;
@@ -84,13 +98,11 @@ body {
   letter-spacing: 0.5px;
 }
 .header-output {
-  flex: 2;
   text-align: center;
   font-weight: 900;
   font-size: 24px;
   color: #0a0f14;
   letter-spacing: 0.5px;
-  margin-left: 60px;  /* account for wider divider column + gap */
 }
 
 /* ========================
@@ -102,7 +114,7 @@ body {
   display: grid;
   column-gap: 10px;
   row-gap: 14px;
-  grid-template-columns: 1fr 60px 2fr;
+  grid-template-columns: 0.7fr 60px 2fr;
   grid-template-rows: 1fr 1fr;
   grid-template-areas:
     "orig_video     divider   top_output"
@@ -115,6 +127,9 @@ body {
 .top-output-area   { grid-area: top_output; }
 .chatbox-area      { grid-area: chatbox; display: flex; flex-direction: column; background: var(--chat-bg) !important; }
 .bot-output-area   { grid-area: bot_output; }
+.bot-output-area .media-pane {
+  margin-top: 6px;
+}
 
 /* ========================
    VERTICAL DIVIDER
@@ -136,7 +151,7 @@ body {
   border: 1px solid var(--outline);
   border-radius: 14px;
   padding: 10px;
-  padding-top: 42px;
+  padding-top: 45px;
   box-shadow: 0 4px 12px var(--shadow);
   position: relative;
   overflow: hidden;
@@ -162,7 +177,7 @@ body {
   padding: 5px 16px;
   border-radius: 8px;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 16px;
   background: #e6f0ff;
   color: #0b3a7a;
   border: 1.5px solid #9bbcff;
@@ -172,42 +187,76 @@ body {
 }
 
 /* ========================
-   OUTPUT INNER — VERTICAL: video fills height, scores below
+   OUTPUT INNER — SPLIT: media left, scores right
    ======================== */
-.output-inner-vertical {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+.output-inner-split {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(280px, 4fr);
+  flex: 1 1 auto;
   min-height: 0;
   gap: 8px;
+  align-items: stretch;
 }
-/* Video fills available height */
-.output-inner-vertical .motion-video,
-.output-inner-vertical .iframe-frame {
+.media-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  height: 100%;
+  border-radius: 10px;
+}
+.media-pane > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+/* Media fills available height and is allowed to crop horizontally */
+.output-inner-split .motion-video,
+.output-inner-split .iframe-frame {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  object-fit: cover;
+  height: 100%;
   border-radius: 10px;
 }
-/* Scores sit at bottom, don't grow */
-.output-inner-vertical .scores-bottom {
-  flex: 0 0 auto;
-  max-height: 40%;
+.output-inner-split .motion-video {
+  object-fit: cover;
+}
+/* Zoom in 15% on the top-right (current task motion) video */
+.top-output-area .motion-video {
+  transform: scale(1.2);
+  transform-origin: center center;
+}
+.scores-pane {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
   overflow-y: auto;
 }
-/* Loading wrapper fills space */
-.output-inner-vertical #video-stage,
-.output-inner-vertical .dash-spinner-container,
-.output-inner-vertical ._dash-loading {
+/* Loading wrapper fills the media pane */
+.media-pane #video-stage,
+.media-pane #video-loading,
+.media-pane #video-loading > div,
+.media-pane .dash-spinner-container,
+.media-pane ._dash-loading,
+.media-pane ._dash-loading > div {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  height: 100%;
 }
-.output-inner-vertical #video-stage .player {
+.media-pane video {
+  display: block;
+}
+.media-pane #video-stage .player {
   flex: 1 1 auto;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 
@@ -224,7 +273,7 @@ body {
 
 .orig-video-area .player {
   object-fit: cover;
-  object-position: 20% center;
+  object-position: center 80%;
 }
 
 /* ========================
@@ -291,7 +340,7 @@ body {
 /* Back compression force slider */
 .ssp-back-img {
   width: 100%;
-  height: auto;
+  max-height: 150px;
   object-fit: contain;
   border-radius: 8px;
   background: rgba(255,255,255,0.5);
@@ -445,4 +494,15 @@ body {
   text-align: center;
   font-weight: 700;
   background: rgba(0,0,0,0.15);
+}
+
+@media (max-width: 1200px) {
+  .output-inner-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .scores-pane {
+    max-height: 45%;
+  }
 }
